@@ -2,141 +2,243 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Form Permintaan Persediaan / Barang</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Permintaan ATK - Kantor</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #eef2f5; }
-    .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 25px; }
+    h2 { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; color: #0d6efd; margin-top: 0; }
     .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
-    input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    .search-box { margin-bottom: 15px; width: 50%; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 14px; }
+    input[type="text"], select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+    .search-box { margin-bottom: 15px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
-    th { background: #007bff; color: white; }
-    button { background: #28a745; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 4px; font-size: 16px; }
-    button:hover { background: #218838; }
+    th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; font-size: 14px; }
+    th { background-color: #e9ecef; }
+    input[type="number"] { width: 70px; padding: 5px; }
+    .btn { background-color: #0d6efd; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; }
+    .btn:hover { background-color: #0b5ed7; }
+    
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: white; width: 500px; max-width: 90%; border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .modal-footer { margin-top: 20px; text-align: right; border-top: 1px solid #ddd; padding-top: 10px; display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-secondary { background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+    .btn-success { background: #198754; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Form Permintaan Persediaan Barang Kantor</h2>
-    <form id="formPinjam">
-      <div class="form-group">
-        <label>Nama Pegawai *</label>
-        <input type="text" id="nama" placeholder="Masukkan nama lengkap" required>
-      </div>
-      <div class="form-group">
-        <label>Email *</label>
-        <input type="email" id="email" placeholder="nama@kantor.go.id" required>
-      </div>
-      <div class="form-group">
-        <label>Bidang / Sub Bagian *</label>
-        <select id="bidang" required>
-          <option value="">-- Pilih Bidang --</option>
-          <option value="Tata Usaha">Tata Usaha</option>
-          <option value="Pemeriksaan">Pemeriksaan</option>
-          <option value="Infokom">Infokom</option>
-          <option value="Penindakan">Penindakan</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Keperluan *</label>
-        <textarea id="keperluan" rows="2" placeholder="Contoh: Rapat Koordinasi Wilayah" required></textarea>
-      </div>
 
-      <h3>Pilih Barang Persediaan</h3>
-      <input type="text" id="search" class="search-box" placeholder="🔍 Cari kode atau nama barang..." onkeyup="loadBarang()">
+<div class="container">
+  <h2>Form Pengajuan Permintaan ATK</h2>
 
-      <table>
-        <thead>
-          <tr>
-            <th width="5%">Pilih</th>
-            <th>Kode</th>
-            <th>Nama Barang</th>
-            <th>Satuan</th>
-            <th>Stok Tersedia</th>
-            <th width="15%">Jumlah Pinjam</th>
-          </tr>
-        </thead>
-        <tbody id="tabelBarang"></tbody>
-      </table>
-      <br>
-      <button type="submit">Kirim Permintaan</button>
-    </form>
+  <form id="formPeminjaman">
+    <div class="form-group">
+      <label>Nama Peminta / Pegawai *</label>
+      <input type="text" id="nama_peminjam" placeholder="Masukkan nama lengkap Anda" required>
+    </div>
+
+    <div class="form-group">
+      <label>Bidang / Divisi *</label>
+      <select id="divisi" required>
+        <option value="">-- Pilih Bidang / Divisi --</option>
+        <option value="Sekretariat">Tata Usaha</option>
+        <option value="Keuangan & Perencanaan">Pemeriksaan</option>
+        <option value="Operasional">Infokom</option>
+        <option value="TI & Pelayanan">Penindakan</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Keperluan / Catatan (opsional)</label>
+      <textarea id="keperluan" rows="2" placeholder="Contoh: Untuk kebutuhan rapat mingguan"></textarea>
+    </div>
+
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+    <h3>Pilih Barang / ATK yang Diminta</h3>
+    <div class="search-box">
+      <input type="text" id="searchBarang" placeholder="Cari nama barang..." onkeyup="filterBarang()">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 50px; text-align: center;">Pilih</th>
+          <th>Kode</th>
+          <th>Nama Barang</th>
+          <th>Satuan</th>
+          <th>Stok Tersedia</th>
+          <th style="width: 100px;">Jumlah</th>
+        </tr>
+      </thead>
+      <tbody id="tabelBarang">
+        <!-- Dimuat via JS -->
+      </tbody>
+    </table>
+
+    <button type="button" class="btn" onclick="bukaPreview()">Minta</button>
+  </form>
+</div>
+
+<!-- Modal Preview Permintaan -->
+<div id="modalPreview" class="modal">
+  <div class="modal-content">
+    <h3 style="margin-top:0; border-bottom: 1px solid #ddd; padding-bottom: 10px;">Konfirmasi Permintaan ATK</h3>
+    <div id="isiPreview" style="font-size: 14px; line-height: 1.6;"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="tutupPreview()">Batal & Edit</button>
+      <button class="btn-success" onclick="kirimPermintaan()">Kirim Permintaan</button>
+    </div>
   </div>
+</div>
 
-  <script>
-    async function loadBarang() {
-      const keyword = document.getElementById('search').value;
-      const res = await fetch('/api/barang?search=' + encodeURIComponent(keyword));
-      const data = await res.json();
-      const tbody = document.getElementById('tabelBarang');
-      tbody.innerHTML = '';
+<script>
+  let daftarBarangGlobal = [];
 
-      if(data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Barang tidak ditemukan</td></tr>';
-        return;
-      }
+  function muatBarang() {
+    fetch('/api/barang')
+      .then(res => res.json())
+      .then(data => {
+        daftarBarangGlobal = data;
+        tampilkanTabel(data);
+      })
+      .catch(err => console.error('Gagal mengambil daftar barang:', err));
+  }
 
-      data.forEach(item => {
-        tbody.innerHTML += `
-          <tr>
-            <td style="text-align:center;">
-              <input type="checkbox" class="chk-barang" data-id="${item.id}" onchange="toggleInput(this)">
-            </td>
-            <td>${item.kode}</td>
-            <td>${item.nama}</td>
-            <td>${item.satuan}</td>
-            <td><b>${item.stok}</b></td>
-            <td>
-              <input type="number" id="jumlah-${item.id}" min="1" max="${item.stok}" value="1" disabled class="input-jumlah" data-id="${item.id}">
-            </td>
-          </tr>
-        `;
-      });
+  function tampilkanTabel(data) {
+    const tbody = document.getElementById('tabelBarang');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Barang tidak ditemukan.</td></tr>`;
+      return;
     }
 
-    function toggleInput(chk) {
-      const id = chk.dataset.id;
-      const inputJumlah = document.getElementById(`jumlah-${id}`);
-      inputJumlah.disabled = !chk.checked;
+    data.forEach(item => {
+      const isOut = item.stok <= 0;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="chk-item" value="${item.id}" data-nama="${item.nama}" data-satuan="${item.satuan}" data-stok="${item.stok}" ${isOut ? 'disabled' : ''} onchange="toggleQtyInput(this)">
+        </td>
+        <td>${item.kode || '-'}</td>
+        <td>${item.nama}</td>
+        <td>${item.satuan}</td>
+        <td><strong style="color: ${isOut ? 'red' : 'black'}">${item.stok}</strong></td>
+        <td>
+          <input type="number" class="input-qty" id="qty-${item.id}" min="1" max="${item.stok}" value="1" disabled>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function toggleQtyInput(chk) {
+    const qtyInput = document.getElementById(`qty-${chk.value}`);
+    qtyInput.disabled = !chk.checked;
+  }
+
+  function filterBarang() {
+    const keyword = document.getElementById('searchBarang').value.toLowerCase();
+    const filtered = daftarBarangGlobal.filter(item => 
+      item.nama.toLowerCase().includes(keyword) || 
+      (item.kode && item.kode.toLowerCase().includes(keyword))
+    );
+    tampilkanTabel(filtered);
+  }
+
+  function bukaPreview() {
+    const nama = document.getElementById('nama_peminjam').value.trim();
+    const divisi = document.getElementById('divisi').value;
+    const keperluan = document.getElementById('keperluan').value.trim();
+
+    if (!nama) {
+      alert('Nama Peminta wajib diisi!');
+      return;
+    }
+    if (!divisi) {
+      alert('Bidang / Divisi wajib dipilih!');
+      return;
     }
 
-    document.getElementById('formPinjam').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const items = [];
-      document.querySelectorAll('.chk-barang:checked').forEach(chk => {
-        const id = chk.dataset.id;
-        const jumlah = parseInt(document.getElementById(`jumlah-${id}`).value);
-        items.push({ barang_id: id, jumlah });
-      });
+    const checkboxes = document.querySelectorAll('.chk-item:checked');
+    if (checkboxes.length === 0) {
+      alert('Pilih minimal satu barang yang ingin diminta!');
+      return;
+    }
 
-      if (items.length === 0) {
-        return alert('Silakan centang (✓) minimal 1 barang yang ingin dipinjam!');
-      }
+    let listHtml = '<ul style="padding-left: 20px;">';
+    checkboxes.forEach(chk => {
+      const namaBarang = chk.getAttribute('data-nama');
+      const satuan = chk.getAttribute('data-satuan');
+      const qty = document.getElementById(`qty-${chk.value}`).value;
+      listHtml += `<li><strong>${namaBarang}</strong>: ${qty} ${satuan}</li>`;
+    });
+    listHtml += '</ul>';
 
-      const payload = {
-        nama: document.getElementById('nama').value,
-        email: document.getElementById('email').value,
-        bidang: document.getElementById('bidang').value,
-        keperluan: document.getElementById('keperluan').value,
-        items
-      };
+    document.getElementById('isiPreview').innerHTML = `
+      <p><strong>Nama Peminta:</strong> ${nama}</p>
+      <p><strong>Bidang / Divisi:</strong> ${divisi}</p>
+      <p><strong>Keperluan:</strong> ${keperluan || '-'}</p>
+      <hr>
+      <p><strong>Rincian ATK yang Diminta:</strong></p>
+      ${listHtml}
+    `;
 
-      const res = await fetch('/api/peminjaman', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const result = await res.json();
-      if(result.success) {
-        alert('Permintaan berhasil dikirim!\nKode Registrasi: ' + result.nomor_pinjam);
-        location.reload();
-      }
+    document.getElementById('modalPreview').style.display = 'flex';
+  }
+
+  function tutupPreview() {
+    document.getElementById('modalPreview').style.display = 'none';
+  }
+
+  function kirimPermintaan() {
+    const nama = document.getElementById('nama_peminjam').value.trim();
+    const divisi = document.getElementById('divisi').value;
+    const keperluan = document.getElementById('keperluan').value.trim();
+
+    const selectedItems = [];
+    document.querySelectorAll('.chk-item:checked').forEach(chk => {
+      const namaBarang = chk.getAttribute('data-nama');
+      const satuan = chk.getAttribute('data-satuan');
+      const qty = document.getElementById(`qty-${chk.value}`).value;
+      selectedItems.push(`${namaBarang} (${qty} ${satuan})`);
     });
 
-    loadBarang();
-  </script>
+    const bodyData = {
+      nama_peminjam: nama,
+      divisi: divisi,
+      keperluan: keperluan,
+      items: selectedItems.join(', ')
+    };
+
+    fetch('/api/peminjaman', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyData)
+    })
+    .then(async res => {
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.message || 'Terjadi kesalahan pada server');
+      }
+      return result;
+    })
+    .then(data => {
+      alert(data.message || 'Permintaan berhasil dikirim!');
+      tutupPreview();
+      document.getElementById('formPeminjaman').reset();
+      muatBarang();
+    })
+    .catch(err => {
+      alert('Gagal menyimpan data: ' + err.message);
+      console.error(err);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', muatBarang);
+</script>
+
 </body>
 </html>

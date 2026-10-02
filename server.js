@@ -1,128 +1,191 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const path = require('path'); // 1. Tambahkan modul path bawaan Node.js
-const db = require('./database');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.json());
-
-// 2. Gunakan path.join agar Express menemukan folder public secara tepat
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 3. Tambahkan rute khusus ini untuk memastikan halaman admin selalu bisa dipanggil
+// Inisialisasi Database
+const db = new sqlite3.Database('./peminjaman.db', (err) => {
+  if (err) {
+    console.error('Gagal terhubung ke database:', err.message);
+  } else {
+    console.log('Terhubung ke database SQLite (peminjaman.db).');
+  }
+});
+
+// Pembuatan Tabel
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS barang (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kode TEXT UNIQUE,
+      nama TEXT NOT NULL,
+      satuan TEXT DEFAULT 'pcs',
+      stok INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS peminjaman (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nama_peminjam TEXT NOT NULL,
+      divisi TEXT NOT NULL,
+      keperluan TEXT,
+      items TEXT NOT NULL,
+      status TEXT DEFAULT 'Pending',
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+
+  // Data awal barang jika kosong
+  db.get("SELECT COUNT(*) AS count FROM barang", (err, row) => {
+    if (err) return;
+    if (row.count === 0) {
+      const stmt = db.prepare("INSERT INTO barang (kode, nama, satuan, stok) VALUES (?, ?, ?, ?)");
+      stmt.run('ATK-001', 'Pen X Data Directfill Ballpoint Pen M-2', 'pcs', 10);
+      stmt.run('ATK-002', 'Pen Signo', 'pcs', 10);
+      stmt.run('ATK-003', 'Pulpen Hitam Cair /kotak', 'kotak', 5);
+      stmt.run('ATK-004', 'Pulpen Biru Cair /kotak', 'kotak', 5);
+      stmt.run('ATK-005', 'Pensil TIK', 'pcs', 15);
+      stmt.run('ATK-006', 'Spidol Permanen /kotak', 'kotak', 5);
+      stmt.run('ATK-007', 'Binder Klip no. 105', 'kotak', 20);
+      stmt.finalize();
+      console.log('Data sampel ATK berhasil dimasukkan.');
+    }
+  });
+});
+
+// Endpoint Ambil Daftar Barang
+app.get('/api/barang', (req, res) => {
+  db.all("SELECT * FROM barang ORDER BY id ASC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Endpoint Tambah Barang Baru
+app.post('/api/barang', (req, res) => {
+  const { kode, nama, satuan, stok } = req.body;
+  if (!nama || stok === undefined) return res.status(400).json({ message: 'Nama dan stok wajib diisi' });
+
+  const query = `INSERT INTO barang (kode, nama, satuan, stok) VALUES (?, ?, ?, ?)`;
+  db.run(query, [kode || null, nama, satuan || 'pcs', parseInt(stok)], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Barang berhasil ditambahkan', id: this.lastID });
+  });
+});
+
+// Endpoint Update Barang
+app.put('/api/barang/:id', (req, res) => {
+  const { id } = req.params;
+  const { nama, stok, kode, satuan } = req.body;
+
+  const query = `
+    UPDATE barang 
+    SET nama = COALESCE(?, nama), 
+        stok = ?, 
+        kode = COALESCE(?, kode), 
+        satuan = COALESCE(?, satuan) 
+    WHERE id = ?
+  `;
+
+  db.run(query, [nama, parseInt(stok), kode, satuan, id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Stok barang berhasil diperbarui' });
+  });
+});
+
+// Endpoint Hapus Barang
+app.delete('/api/barang/:id', (req, res) => {
+  const { id } = req.params;
+  db.run(`DELETE FROM barang WHERE id = ?`, [id], function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Barang berhasil dihapus' });
+  });
+});
+
+// Endpoint Ambil Semua Permintaan
+app.get('/api/peminjaman', (req, res) => {
+  db.all("SELECT * FROM peminjaman ORDER BY id DESC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// Endpoint Simpan Permintaan ATK Baru
+app.post('/api/peminjaman', (req, res) => {
+  const { nama_peminjam, divisi, keperluan, items } = req.body;
+
+  if (!nama_peminjam || !divisi || !items) {
+    return res.status(400).json({ message: 'Nama, Bidang/Divisi, dan Barang wajib diisi!' });
+  }
+
+  const query = `
+    INSERT INTO peminjaman (nama_peminjam, divisi, keperluan, items, status, created_at)
+    VALUES (?, ?, ?, ?, 'Pending', datetime('now', 'localtime'))
+  `;
+
+  db.run(query, [nama_peminjam, divisi, keperluan || '', items], function (err) {
+    if (err) {
+      console.error('Database Error:', err.message);
+      return res.status(500).json({ message: 'Gagal menyimpan data ke database', error: err.message });
+    }
+    res.json({ message: 'Permintaan ATK berhasil dikirim!', id: this.lastID });
+  });
+});
+
+// Endpoint Update Status Permintaan & Potong Stok
+app.put('/api/peminjaman/:id', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status) return res.status(400).json({ message: 'Status wajib diisi' });
+
+  db.get("SELECT * FROM peminjaman WHERE id = ?", [id], (err, row) => {
+    if (err || !row) return res.status(404).json({ message: 'Data tidak ditemukan' });
+
+    if (status === 'Disetujui' && row.status !== 'Disetujui') {
+      const itemEntries = row.items.split(',');
+
+      itemEntries.forEach(entry => {
+        const match = entry.trim().match(/^(.+)\s+\((\d+)\s*.*\)$/);
+        if (match) {
+          const namaBarang = match[1].trim();
+          const qty = parseInt(match[2]);
+
+          db.run(
+            "UPDATE barang SET stok = MAX(0, stok - ?) WHERE nama = ?",
+            [qty, namaBarang],
+            (err) => {
+              if (err) console.error(`Gagal potong stok ${namaBarang}:`, err.message);
+            }
+          );
+        }
+      });
+    }
+
+    db.run("UPDATE peminjaman SET status = ? WHERE id = ?", [status, id], function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: `Status berhasil diubah menjadi ${status}` });
+    });
+  });
+});
+
+// Routes Halaman
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// --- API BARANG ---
-// Get list barang (bisa dengan query pencarian)
-app.get('/api/barang', (req, res) => {
-  const search = req.query.search || '';
-  const sql = "SELECT * FROM barang WHERE kode LIKE ? OR nama LIKE ?";
-  db.all(sql, [`%${search}%`, `%${search}%`], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Tambah barang baru (Admin)
-app.post('/api/admin/barang/tambah', (req, res) => {
-  const { kode, nama, satuan, stok } = req.body;
-  db.run(
-    "INSERT INTO barang (kode, nama, satuan, stok) VALUES (?, ?, ?, ?)",
-    [kode, nama, satuan, stok],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, id: this.lastID });
-    }
-  );
-});
-
-// Update stok barang langsung (Admin)
-app.post('/api/admin/barang/update-stok', (req, res) => {
-  const { id, stok } = req.body;
-  db.run("UPDATE barang SET stok = ? WHERE id = ?", [stok, id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
-  });
-});
-
-// --- API PEMINJAMAN ---
-// Submit Peminjaman
-app.post('/api/peminjaman', (req, res) => {
-  const { nama, email, bidang, keperluan, items } = req.body;
-  const noPinjam = 'PR-' + Math.floor(10000 + Math.random() * 90000);
-
-  db.run(
-    `INSERT INTO peminjaman (nomor_pinjam, nama_peminjam, email, bidang, keperluan) VALUES (?, ?, ?, ?, ?)`,
-    [noPinjam, nama, email, bidang, keperluan],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      const peminjamanId = this.lastID;
-
-      const stmt = db.prepare(`INSERT INTO detail_peminjaman (peminjaman_id, barang_id, jumlah) VALUES (?, ?, ?)`);
-      items.forEach(item => {
-        if (item.jumlah > 0) stmt.run(peminjamanId, item.barang_id, item.jumlah);
-      });
-      stmt.finalize();
-
-      res.json({ success: true, nomor_pinjam: noPinjam });
-    }
-  );
-});
-
-// Get daftar peminjaman beserta detail barangnya (Admin)
-app.get('/api/admin/peminjaman', (req, res) => {
-  const sql = `
-    SELECT p.*, 
-           GROUP_CONCAT(b.nama || ' (' || dp.jumlah || ' ' || b.satuan || ')', ', ') AS item_list
-    FROM peminjaman p
-    LEFT JOIN detail_peminjaman dp ON p.id = dp.peminjaman_id
-    LEFT JOIN barang b ON dp.barang_id = b.id
-    GROUP BY p.id
-    ORDER BY p.tanggal DESC
-  `;
-  db.all(sql, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Update status & potong stok otomatis jika disetujui
-app.post('/api/admin/peminjaman/status', (req, res) => {
-  const { id, status } = req.body;
-
-  db.get("SELECT status FROM peminjaman WHERE id = ?", [id], (err, row) => {
-    if (err || !row) return res.status(500).json({ error: 'Data tidak ditemukan' });
-    if (row.status === status) return res.json({ success: true }); // Tidak ada perubahan
-
-    // Jika disetujui dan sebelumnya bukan disetujui -> potong stok
-    if (status === 'Disetujui' && row.status !== 'Disetujui') {
-      db.all("SELECT barang_id, jumlah FROM detail_peminjaman WHERE peminjaman_id = ?", [id], (err, items) => {
-        if (err) return res.status(500).json({ error: err.message });
-
-        items.forEach(item => {
-          db.run("UPDATE barang SET stok = MAX(0, stok - ?) WHERE id = ?", [item.jumlah, item.barang_id]);
-        });
-
-        db.run("UPDATE peminjaman SET status = ? WHERE id = ?", [status, id], function(err) {
-          if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true });
-        });
-      });
-    } else {
-      db.run("UPDATE peminjaman SET status = ? WHERE id = ?", [status, id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-      });
-    }
-  });
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server berjalan di:`);
-  console.log(`- Lokal: http://localhost:${PORT}`);
-  console.log(`- Jaringan Wi-Fi: http://10.10.7.9:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Server aktif di http://localhost:${PORT}`);
 });
