@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Panel Kelola Persediaan</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f6f9; }
+    .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .tab-btn { padding: 10px 20px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 4px 4px 0 0; font-weight: bold; }
+    .tab-btn.active { background: #343a40; color: white; }
+    .tab-content { display: none; border: 1px solid #ccc; padding: 15px; border-radius: 0 0 4px 4px; }
+    .tab-content.active { display: block; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 13px; }
+    th { background: #343a40; color: white; }
+    .badge { padding: 3px 6px; border-radius: 3px; color: white; font-weight: bold; }
+    .Disetujui { background: #28a745; }
+    .Ditolak { background: #dc3545; }
+    .Pending { background: #ffc107; color: black; }
+    button { cursor: pointer; padding: 5px 10px; border: none; border-radius: 3px; }
+    .btn-setuju { background: #28a745; color: white; }
+    .btn-tolak { background: #dc3545; color: white; }
+    .form-inline { display: flex; gap: 10px; margin-bottom: 15px; }
+    .form-inline input { padding: 6px; border: 1px solid #ccc; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Panel Admin Persediaan Barang</h2>
+    <div>
+      <button class="tab-btn active" onclick="switchTab('peminjaman')">Daftar Peminjaman</button>
+      <button class="tab-btn" onclick="switchTab('stok')">Kelola Stok Barang</button>
+    </div>
+
+    <!-- TAB 1: PEMINJAMAN -->
+    <div id="tab-peminjaman" class="tab-content active">
+      <!-- Di dalam <div id="tab-peminjaman"> -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+         <h3>Daftar Permintaan Masuk</h3>
+          <button style="background: #17a2b8; color: white;" onclick="exportKeExcel()">📊 Export ke Excel</button>
+      </div>
+      <h3>Daftar Permintaan Masuk</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>No. Pinjam</th>
+            <th>Nama & Bidang</th>
+            <th>Barang Dipinjam</th>
+            <th>Keperluan</th>
+            <th>Status</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="tabelPeminjaman"></tbody>
+      </table>
+    </div>
+
+    <!-- TAB 2: KELOLA STOK BARANG -->
+    <div id="tab-stok" class="tab-content">
+      <h3>Tambah Barang Baru</h3>
+      <div class="form-inline">
+        <input type="text" id="addKode" placeholder="Kode (misal: BRG-004)" required>
+        <input type="text" id="addNama" placeholder="Nama Barang" required>
+        <input type="text" id="addSatuan" placeholder="Satuan (unit/pcs)" required>
+        <input type="number" id="addStok" placeholder="Jumlah Stok" min="0" required>
+        <button style="background: #007bff; color: white;" onclick="tambahBarang()">+ Tambah</button>
+      </div>
+
+      <h3>Daftar Stok Barang</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Kode</th>
+            <th>Nama Barang</th>
+            <th>Satuan</th>
+            <th width="15%">Stok Saat Ini</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="tabelStokAdmin"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function exportKeExcel() {
+  const table = document.getElementById('tabelPeminjaman').parentElement;
+  let html = table.outerHTML;
+
+  // Format file sebagai Blob Excel (XLS)
+  const url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
+  const downloadLink = document.createElement("a");
+  document.body.appendChild(downloadLink);
+  downloadLink.href = url;
+  downloadLink.download = `Laporan_Peminjaman_${new Date().toISOString().slice(0,10)}.xls`;
+  downloadLink.click();
+  document.body.removeChild(downloadLink);
+}
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      if(tabName === 'peminjaman') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('tab-peminjaman').classList.add('active');
+        loadPeminjaman();
+      } else {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('tab-stok').classList.add('active');
+        loadStokAdmin();
+      }
+    }
+
+    async function loadPeminjaman() {
+      const res = await fetch('/api/admin/peminjaman');
+      const data = await res.json();
+      const tbody = document.getElementById('tabelPeminjaman');
+      tbody.innerHTML = '';
+      data.forEach(row => {
+        tbody.innerHTML += `
+          <tr>
+            <td><b>${row.nomor_pinjam}</b></td>
+            <td>${row.nama_peminjam}<br><small style="color:gray;">${row.bidang}</small></td>
+            <td>${row.item_list || '-'}</td>
+            <td>${row.keperluan}</td>
+            <td><span class="badge ${row.status}">${row.status}</span></td>
+            <td>
+              ${row.status === 'Pending' ? `
+                <button class="btn-setuju" onclick="updateStatus(${row.id}, 'Disetujui')">Setujui</button>
+                <button class="btn-tolak" onclick="updateStatus(${row.id}, 'Ditolak')">Tolak</button>
+              ` : '-'}
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function updateStatus(id, status) {
+      if(!confirm(`Yakin ingin mengubah status menjadi ${status}?`)) return;
+      await fetch('/api/admin/peminjaman/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      loadPeminjaman();
+    }
+
+    async function loadStokAdmin() {
+      const res = await fetch('/api/barang');
+      const data = await res.json();
+      const tbody = document.getElementById('tabelStokAdmin');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${item.kode}</td>
+            <td>${item.nama}</td>
+            <td>${item.satuan}</td>
+            <td><input type="number" id="stok-val-${item.id}" value="${item.stok}" style="width:70px;"></td>
+            <td>
+              <button style="background: #17a2b8; color: white;" onclick="simpanStok(${item.id})">Simpan Stok</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    async function simpanStok(id) {
+      const newStok = document.getElementById(`stok-val-${id}`).value;
+      await fetch('/api/admin/barang/update-stok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, stok: newStok })
+      });
+      alert('Stok berhasil diperbarui!');
+      loadStokAdmin();
+    }
+
+    async function tambahBarang() {
+      const kode = document.getElementById('addKode').value;
+      const nama = document.getElementById('addNama').value;
+      const satuan = document.getElementById('addSatuan').value;
+      const stok = document.getElementById('addStok').value;
+
+      if(!kode || !nama || !satuan || stok === '') return alert('Semua input wajib diisi!');
+
+      await fetch('/api/admin/barang/tambah', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode, nama, satuan, stok })
+      });
+
+      alert('Barang baru berhasil ditambahkan!');
+      document.getElementById('addKode').value = '';
+      document.getElementById('addNama').value = '';
+      document.getElementById('addSatuan').value = '';
+      document.getElementById('addStok').value = '';
+      loadStokAdmin();
+    }
+
+    loadPeminjaman();
+  </script>
+</body>
+</html>
